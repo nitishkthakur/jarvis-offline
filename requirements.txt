@@ -1,0 +1,27 @@
+# Django core
+Django>=4.2,<5.0
+django-environ        # environment variable management
+djangorestframework   # if you expose APIs
+
+# Database drivers
+psycopg2-binary       # PostgreSQL (or use sqlite3 builtin)
+
+# Hugging Face LLM & pipelines
+transformers>=4.30.0
+huggingface-hub>=0.14.1
+
+# Diffusion/image
+diffusers>=0.19.0
+accelerate>=0.18.0
+torch>=2.0.0           # CPU/GPU support
+safetensors           # faster model loading
+
+# Image handling
+Pillow>=9.0
+
+# Data validation & structured outputs
+pydantic>=2.0.0
+langchain>=0.0.330    # (optional) for output parsers
+
+# CORS (if building an API)
+django-cors-headers>=3.14.0
