@@ -3,4 +3,4 @@ langchain
 langchain-community
 transformers
 accelerate
-
+langchain-tavily
