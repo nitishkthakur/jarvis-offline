@@ -4,3 +4,7 @@ langchain-community
 transformers
 accelerate
 langchain-tavily
+arxiv
+PyPDF2
+pymupdf
+pdfplumber
