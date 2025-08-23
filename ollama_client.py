@@ -5,7 +5,29 @@ import requests
 import subprocess
 import time
 import shutil
+GENERIC_AGENT_INSTRUCTIONS = """You are a helpful Agent among a group of agents trying to solve a problem. Each agent is tasked with a part or the entire problem.
+You will be given your task. You will have access to all the relevant information and tools. You can also see the work already done by other agents. Use that information if required.
 
+
+## Instructions
+1. View the context, the task executed, the results, the tool call results of the other agents.
+2. Reason and execute your task.
+3. You have access to multiple tools as listed. You can only call tools which are relevant to your task. Other agents might have executed other tools which you dont have access to.
+4. Always output strictly JSON. Always.
+5. your task will be enclosed in <YOUR TASK></YOUR TASK> tags. This is your task. Only execute this task.
+6. The work done by other agents will be enclosed in <Agent: Agent Name></Agent: Agent Name> tags. There may be multiple of these.
+
+
+Following is the relevant information from other agents (if any):
+{other_agents_history}
+
+
+<YOUR TASK>
+{task}
+</YOUR TASK>
+
+
+"""
 
 class OllamaClient:
     """A simplified agent client for interacting with Ollama API."""
@@ -23,7 +45,8 @@ class OllamaClient:
         self, 
         base_url: str = "http://localhost:11434",
         model_name: str = "llama3.2:3b",
-        system_instructions: str = ""
+        system_instructions: str = "",
+        agent_name: str = ""
     ):
         """Initialize the Ollama agent client.
         
@@ -31,11 +54,23 @@ class OllamaClient:
             base_url: URL of the Ollama server
             model_name: Default model to use for all interactions
             system_instructions: System instructions to guide the agent's behavior
+            agent_name: Name/identifier for this agent
         """
         self.base_url = base_url.rstrip("/")
         self.default_model = model_name
         self.system_instructions = system_instructions
+        self.agent_name = agent_name
         self.conversation_history: list[dict] = []  # Store conversation history
+        
+        # New agent context variables
+        self.role = ""
+        self.generic_agent_instructions = GENERIC_AGENT_INSTRUCTIONS.format(task=self.role, other_agents_history=self.history_from_other_agents)
+        self.all_tool_names = ""
+        self.history_from_other_agents = ""
+        self.only_this_agent_context = ""
+
+
+        
         self._ensure_server_ready()
         self._set_model_keepalive()
 
@@ -134,28 +169,118 @@ class OllamaClient:
         """Clear the conversation history."""
         self.conversation_history.clear()
 
-    def add_context_from_other_agents(self, context: list[dict]) -> None:
-        """Add conversation history from other agents to the current conversation history.
+    def _build_agent_context(self, agent_response: str = "", tool_results: dict = None) -> None:
+        """Build the only_this_agent_context with the specified XML structure.
         
         Args:
-            context: List of conversation messages from other agents (format: [{"role": "user/assistant", "content": "..."}])
+            agent_response: The agent's response to include in context
+            tool_results: Dictionary of tool names and their results
         """
-        if context and isinstance(context, list):
-            # Validate that each item in context is a proper message dict
-            for msg in context:
-                if isinstance(msg, dict) and "role" in msg and "content" in msg:
-                    self.conversation_history.append(msg)
-                else:
-                    print(f"Warning: Skipping invalid message format: {msg}")
+        if not self.agent_name:
+            return
+            
+        tool_section = ""
+        if tool_results:
+            tool_section = f"Tool(s) Invoked and the tool outputs obtained: {tool_results}"
+        
+        self.only_this_agent_context = f"""<Agent: {self.agent_name}>
+            Task: This is the {self.role}
+            Agent Response: {agent_response}
+            {tool_section}
+            </Agent: {self.agent_name}>"""
 
-    def merge_conversation_from_agent(self, other_agent: 'OllamaClient') -> None:
-        """Merge conversation history from another agent instance.
+    def update_agent_context(self, agent_response: str = "", tool_results: dict = None) -> None:
+        """Update the agent context with new response and tool results.
         
         Args:
-            other_agent: Another OllamaClient instance whose conversation history to merge
+            agent_response: The agent's response to include in context
+            tool_results: Dictionary of tool names and their results
         """
-        if hasattr(other_agent, 'conversation_history'):
-            self.add_context_from_other_agents(other_agent.conversation_history)
+        self._build_agent_context(agent_response, tool_results)
+
+    def get_agent_context(self) -> str:
+        """Get the current agent context.
+        
+        Returns:
+            The XML-formatted agent context string
+        """
+        return self.only_this_agent_context
+
+    def set_role(self, role: str) -> None:
+        """Set the agent's role.
+        
+        Args:
+            role: The role description for this agent
+        """
+        self.role = role
+
+    def get_role(self) -> str:
+        """Get the agent's role.
+        
+        Returns:
+            The agent's role
+        """
+        return self.role
+
+    def set_generic_agent_instructions(self, instructions: str) -> None:
+        """Set generic agent instructions.
+        
+        Args:
+            instructions: Generic instructions for the agent
+        """
+        self.generic_agent_instructions = instructions
+
+    def get_generic_agent_instructions(self) -> str:
+        """Get generic agent instructions.
+        
+        Returns:
+            The generic agent instructions
+        """
+        return self.generic_agent_instructions
+
+    def set_all_tool_names(self, tool_names: str) -> None:
+        """Set all available tool names.
+        
+        Args:
+            tool_names: String containing all tool names
+        """
+        self.all_tool_names = tool_names
+
+    def get_all_tool_names(self) -> str:
+        """Get all available tool names.
+        
+        Returns:
+            String containing all tool names
+        """
+        return self.all_tool_names
+
+    def set_history_from_other_agents(self, history: str) -> None:
+        """Set history from other agents.
+        
+        Args:
+            history: History information from other agents
+        """
+        self.history_from_other_agents = history
+
+    def get_history_from_other_agents(self) -> str:
+        """Get history from other agents.
+        
+        Returns:
+            History from other agents
+        """
+        return self.history_from_other_agents
+
+    def add_context_from_other_agents(self, context: str) -> None:
+        """Add context from other agents to the conversation history.
+        
+        Args:
+            context: Context information from other agents
+        """
+        if context.strip():
+            self.conversation_history.append({
+                "role": "user",
+                "content": f"Context from other agents: {context}"
+            })
 
     def _get_json_type(self, python_type: t.Any) -> str:
         """Convert Python type to JSON schema type."""
@@ -408,7 +533,7 @@ class OllamaClient:
     def invoke_with_context(
         self,
         query: str,
-        context_from_other_agents: list[dict] = None,
+        context_from_other_agents: str = "",
         json_schema: t.Optional[dict | t.Any] = None,
         tools: t.Optional[t.Iterable[t.Callable]] = None,
         model_name: t.Optional[str] = None,
@@ -417,13 +542,13 @@ class OllamaClient:
         
         Args:
             query: The user's query
-            context_from_other_agents: List of conversation messages from other agents
+            context_from_other_agents: Context information from other agents
             json_schema: Optional JSON schema for structured responses
             tools: Optional list of functions the agent can call
             model_name: Optional model override (uses default if not provided)
         """
         # Add context from other agents if provided
-        if context_from_other_agents:
+        if context_from_other_agents.strip():
             self.add_context_from_other_agents(context_from_other_agents)
         
         # Use regular invoke method which now includes conversation history
@@ -448,17 +573,26 @@ if __name__ == "__main__":
         """
         return f"{city}: 24°{unit}, sunny"
 
-    # Create an agent with system instructions and default model
+    # Create an agent with system instructions, default model, and agent name
     agent = OllamaClient(
         model_name="llama3.2:3b",
-        system_instructions="You are a helpful programming assistant. Always be concise and accurate."
+        system_instructions="You are a helpful programming assistant. Always be concise and accurate.",
+        agent_name="PythonExpert"
     )
+    
+    # Set up agent properties
+    agent.set_role("Python programming consultant")
+    agent.set_generic_agent_instructions("Provide accurate Python programming advice")
+    agent.set_all_tool_names("get_weather")
 
     # Example 1: First conversation
     print("=== Conversation Example ===")
     result1 = agent.invoke("What is Python?")
     print(f"Q1: What is Python?")
     print(f"A1: {result1['text'][:100]}...")
+    
+    # Update agent context with response
+    agent.update_agent_context(result1['text'][:100], {"get_weather": "not_used"})
     
     # Example 2: Follow-up question (uses conversation history)
     result2 = agent.invoke("What are its main advantages?")
@@ -467,20 +601,21 @@ if __name__ == "__main__":
     
     # Example 3: Using context from other agents
     print(f"\n=== Context from Other Agents Example ===")
-    context_history = [
-        {"role": "user", "content": "What framework should I use for web development?"},
-        {"role": "assistant", "content": "For Python web development, I recommend Django for full-featured applications or Flask for simpler projects."},
-        {"role": "user", "content": "I'm building an e-commerce site."}
-    ]
+    context = "Agent A analyzed that the user is working on a web development project using Django."
     result3 = agent.invoke_with_context(
         "Should I use Python for this project?",
-        context_from_other_agents=context_history
+        context_from_other_agents=context
     )
     print(f"Q3: Should I use Python for this project?")
-    print(f"Context: Previous conversation about web frameworks and e-commerce")
+    print(f"Context: {context}")
     print(f"A3: {result3['text'][:100]}...")
     
-    # Example 4: Show conversation history
+    # Example 4: Show agent context
+    print(f"\n=== Agent Context (XML Format) ===")
+    agent.update_agent_context(result3['text'][:100], {"get_weather": "24°C, sunny"})
+    print(agent.get_agent_context())
+    
+    # Example 5: Show conversation history
     print(f"\n=== Conversation History ===")
     history = agent.get_conversation_history()
     print(f"Total messages in history: {len(history)}")
@@ -489,7 +624,14 @@ if __name__ == "__main__":
         content = msg['content'][:80] + "..." if len(msg['content']) > 80 else msg['content']
         print(f"{i+1}. {role}: {content}")
     
-    # Example 5: Clear history and start fresh
+    # Example 6: Agent properties
+    print(f"\n=== Agent Properties ===")
+    print(f"Agent Name: {agent.agent_name}")
+    print(f"Role: {agent.get_role()}")
+    print(f"Generic Instructions: {agent.get_generic_agent_instructions()}")
+    print(f"Available Tools: {agent.get_all_tool_names()}")
+    
+    # Example 7: Clear history and start fresh
     print(f"\n=== Starting Fresh ===")
     agent.clear_conversation_history()
     result4 = agent.invoke("Hello, I'm new here!")
