@@ -43,6 +43,8 @@ class OllamaClient:
 
     def __init__(
         self, 
+        role: str,
+        history_from_other_agents: str = "",
         base_url: str = "http://localhost:11434",
         model_name: str = "llama3.2:3b",
         system_instructions: str = "",
@@ -58,16 +60,21 @@ class OllamaClient:
         """
         self.base_url = base_url.rstrip("/")
         self.default_model = model_name
-        self.system_instructions = system_instructions
+        #self.system_instructions = system_instructions
         self.agent_name = agent_name
         self.conversation_history: list[dict] = []  # Store conversation history
         
         # New agent context variables
-        self.role = ""
-        self.generic_agent_instructions = GENERIC_AGENT_INSTRUCTIONS.format(task=self.role, other_agents_history=self.history_from_other_agents)
+        self.role = role
+        self.history_from_other_agents = history_from_other_agents
         self.all_tool_names = ""
-        self.history_from_other_agents = ""
         self.only_this_agent_context = ""
+
+        # System instructions is the same as the generic agent instruuctions  -  fix that to remove redundancy
+        self.generic_agent_instructions = GENERIC_AGENT_INSTRUCTIONS.format(task=self.role, other_agents_history=self.history_from_other_agents)
+        self.system_instructions = self.generic_agent_instructions
+        
+        
 
 
         
