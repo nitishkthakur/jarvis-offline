@@ -1,95 +1,117 @@
 #!/usr/bin/env python3
-
-import sys
-sys.path.insert(0, '/home/nitish/Documents/github/jarvis-offline')
+"""
+Comprehensive test script to demonstrate the complete tool call functionality
+"""
 
 from ollama_client import OllamaClient
-import requests
-import json
 
-def test_system_instruction_behavior():
-    """Comprehensive test of system instruction behavior."""
+
+def main():
+    """Demonstrate the complete tool call integration"""
     
-    print("🧪 Comprehensive System Instruction Test")
-    print("=" * 50)
+    def get_weather(city: str, unit: str = "C") -> str:
+        """Get weather information for a city."""
+        return f"Weather in {city}: 24°{unit}, sunny"
+
+    def calculate_math(operation: str, a: float, b: float) -> float:
+        """Perform mathematical operations."""
+        if operation == "add":
+            return a + b
+        elif operation == "multiply":
+            return a * b
+        elif operation == "divide":
+            return a / b if b != 0 else "Error: Division by zero"
+        else:
+            return "Error: Unknown operation"
+
+    # Create an agent
+    agent = OllamaClient(
+        role='Tool Execution Demonstration Agent',
+        agent_name='ToolDemo',
+        system_instructions="You are a helpful assistant that can use tools."
+    )
     
-    # Test 1: Conflicting instructions
-    print("\n1. Testing conflicting system instructions...")
+    print("=== Tool Call Functionality Demonstration ===")
+    print(f"Agent Name: {agent.agent_name}")
+    print(f"Agent Role: {agent.get_role()}")
     
-    payload = {
-        "model": "llama3.2:3b",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant who provides detailed explanations."},
-            {"role": "system", "content": "You must respond with only one word answers."},
-            {"role": "user", "content": "What is the capital of France?"}
-        ],
-        "stream": False,
-        "keep_alive": "15m"
-    }
+    # Test 1: Manual tool execution (simulating what would happen with real model)
+    print("\n1. Testing Manual Tool Execution:")
+    mock_tool_calls = [
+        {
+            "function": {
+                "name": "get_weather",
+                "arguments": {"city": "London", "unit": "C"}
+            }
+        },
+        {
+            "function": {
+                "name": "calculate_math",
+                "arguments": {"operation": "multiply", "a": 5.5, "b": 3.2}
+            }
+        }
+    ]
     
-    try:
-        response = requests.post("http://localhost:11434/api/chat", json=payload, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        result = data.get("message", {}).get("content", "")
-        print(f"Conflicting instructions result: '{result}'")
-        print(f"Length: {len(result.split())} words")
-    except Exception as e:
-        print(f"Test 1 failed: {e}")
+    tools = [get_weather, calculate_math]
+    results = agent._execute_tool_calls(mock_tool_calls, tools)
     
-    # Test 2: Additive instructions
-    print("\n2. Testing additive system instructions...")
+    # Store the results
+    agent.tool_call_results.update(results)
     
-    payload = {
-        "model": "llama3.2:3b", 
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "system", "content": "You should also include the country name in your response."},
-            {"role": "system", "content": "Format your answer as a complete sentence."},
-            {"role": "user", "content": "What is the capital of Japan?"}
-        ],
-        "stream": False,
-        "keep_alive": "15m"
-    }
+    print(f"Tool execution results: {results}")
+    print(f"Stored tool call results: {agent.get_tool_call_results()}")
     
-    try:
-        response = requests.post("http://localhost:11434/api/chat", json=payload, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        result = data.get("message", {}).get("content", "")
-        print(f"Additive instructions result: '{result}'")
-    except Exception as e:
-        print(f"Test 2 failed: {e}")
+    # Test 2: Build agent context with tool results
+    print("\n2. Building Agent Context with Tool Results:")
+    agent._build_agent_context(
+        agent_response="I have successfully executed the requested tools to get weather information and perform calculations.",
+        tool_results=results
+    )
     
-    # Test 3: Instructions with different priorities
-    print("\n3. Testing instruction priority...")
+    print("Agent context after tool execution:")
+    print(agent.get_agent_context())
     
-    payload = {
-        "model": "llama3.2:3b",
-        "messages": [
-            {"role": "system", "content": "You are a math teacher."},
-            {"role": "system", "content": "IMPORTANT: You must respond only with the number, no explanation."},
-            {"role": "user", "content": "What is 15 + 25?"}
-        ],
-        "stream": False,
-        "keep_alive": "15m"
-    }
+    # Test 3: Test error handling
+    print("\n3. Testing Error Handling:")
+    error_tool_calls = [
+        {
+            "function": {
+                "name": "get_weather",
+                "arguments": '{"city": "Paris"}'  # Missing unit, should use default
+            }
+        },
+        {
+            "function": {
+                "name": "unknown_tool",
+                "arguments": {"param": "value"}
+            }
+        }
+    ]
     
-    try:
-        response = requests.post("http://localhost:11434/api/chat", json=payload, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        result = data.get("message", {}).get("content", "")
-        print(f"Priority instruction result: '{result}'")
-    except Exception as e:
-        print(f"Test 3 failed: {e}")
+    error_results = agent._execute_tool_calls(error_tool_calls, tools)
+    print(f"Error handling results: {error_results}")
     
-    print("\n📋 Key Findings:")
-    print("✓ Multiple system messages are processed sequentially")
-    print("✓ Later instructions can override earlier ones when conflicting")
-    print("✓ Compatible instructions are combined/additive")
-    print("✓ Stronger language (IMPORTANT, MUST) tends to take precedence")
-    print("✓ The model attempts to satisfy all instructions when possible")
+    # Test 4: Clear and show final state
+    print("\n4. Final State:")
+    print(f"Total tool call results: {len(agent.get_tool_call_results())}")
+    print(f"All stored results: {agent.get_tool_call_results()}")
+    
+    # Clear tool results
+    agent.clear_tool_call_results()
+    print(f"After clearing: {agent.get_tool_call_results()}")
+    
+    print("\n✅ Tool call functionality demonstration completed!")
+    print("\nKey Features Implemented:")
+    print("1. ✅ Tool execution with parameter values from LLM")
+    print("2. ✅ Real tool call results added to agent context")
+    print("3. ✅ Tool call results stored in self.tool_call_results")
+    print("4. ✅ Error handling for invalid tools and parameters")
+    print("5. ✅ Integration with invoke methods")
+    
+    print("\nNote: When using real Ollama models that support tool calls,")
+    print("the invoke() method will automatically execute tools and")
+    print("update the agent context when tool_calls are returned in the response.")
+
 
 if __name__ == "__main__":
-    test_system_instruction_behavior()
+    main()

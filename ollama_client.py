@@ -5,6 +5,8 @@ import requests
 import subprocess
 import time
 import shutil
+import datetime
+CURRENT_DATE=datetime.datetime.now().strftime("%d %b %Y")
 GENERIC_AGENT_INSTRUCTIONS = """You are a helpful Agent among a group of agents trying to solve a problem. Each agent is tasked with a part or the entire problem.
 You will be given your task. You will have access to all the relevant information and tools. You can also see the work already done by other agents. Use that information if required.
 
@@ -13,14 +15,25 @@ You will be given your task. You will have access to all the relevant informatio
 1. View the context, the task executed, the results, the tool call results of the other agents.
 2. Reason and execute your task.
 3. You have access to multiple tools as listed. You can only call tools which are relevant to your task. Other agents might have executed other tools which you dont have access to.
-4. Always output strictly JSON. Always.
+4. Make the necessary tool calls if your tool descriptions match the task
 5. your task will be enclosed in <YOUR TASK></YOUR TASK> tags. This is your task. Only execute this task.
 6. The work done by other agents will be enclosed in <Agent: Agent Name></Agent: Agent Name> tags. There may be multiple of these.
+7. Any information to be used as reference (from documents or internet) about the problem is enclosed in <CONTEXT></CONTEXT> tags
+8. Some general information is enclosed in <general information> tags
 
+<general information>
+1. The current date is: {CURRENT_DATE}
+</general information>
 
 Following is the relevant information from other agents (if any):
 {other_agents_history}
 
+
+
+Here is the required context (if any) that you should refer to:
+<CONTEXT>
+{context}
+</CONTEXT>
 
 <YOUR TASK>
 {task}
@@ -47,6 +60,7 @@ class OllamaClient:
         history_from_other_agents: str = "",
         base_url: str = "http://localhost:11434",
         model_name: str = "llama3.2:3b",
+        this_agent_context: str = "",
         system_instructions: str = "",
         agent_name: str = ""
     ):
@@ -63,15 +77,19 @@ class OllamaClient:
         #self.system_instructions = system_instructions
         self.agent_name = agent_name
         self.conversation_history: list[dict] = []  # Store conversation history
+        self.tool_call_results: dict = {}  # Store tool call results
         
         # New agent context variables
         self.role = role
         self.history_from_other_agents = history_from_other_agents
         self.all_tool_names = ""
-        self.only_this_agent_context = ""
+        self.only_this_agent_context = this_agent_context
 
         # System instructions is the same as the generic agent instruuctions  -  fix that to remove redundancy
-        self.generic_agent_instructions = GENERIC_AGENT_INSTRUCTIONS.format(task=self.role, other_agents_history=self.history_from_other_agents)
+        self.generic_agent_instructions = GENERIC_AGENT_INSTRUCTIONS.format(task=self.role, 
+                                                                            other_agents_history=self.history_from_other_agents,
+                                                                            context=self.only_this_agent_context,
+                                                                            CURRENT_DATE=CURRENT_DATE)
         self.system_instructions = self.generic_agent_instructions
         
         
@@ -191,10 +209,62 @@ class OllamaClient:
             tool_section = f"Tool(s) Invoked and the tool outputs obtained: {tool_results}"
         
         self.only_this_agent_context = f"""<Agent: {self.agent_name}>
-            Task: This is the {self.role}
-            Agent Response: {agent_response}
+            ### Task to be done by the agent:
+            {self.role}
+
+            ### User Input to the agent: {self.query}
+            ### Agent's Response: {agent_response}
             {tool_section}
             </Agent: {self.agent_name}>"""
+
+    def _execute_tool_calls(self, tool_calls: list, available_tools: t.Optional[t.Iterable[t.Callable]]) -> dict:
+        """Execute tool calls and return results.
+        
+        Args:
+            tool_calls: List of tool calls from the model response
+            available_tools: List of available callable functions
+            
+        Returns:
+            Dictionary mapping tool names to their execution results
+        """
+        if not tool_calls or not available_tools:
+            return {}
+        
+        # Create a mapping of tool names to functions
+        tool_map = {func.__name__: func for func in available_tools}
+        execution_results = {}
+        
+        for tool_call in tool_calls:
+            try:
+                # Extract tool call information
+                function_info = tool_call.get("function", {})
+                tool_name = function_info.get("name", "")
+                tool_args = function_info.get("arguments", {})
+                
+                # Parse arguments if they're a JSON string
+                if isinstance(tool_args, str):
+                    import json
+                    try:
+                        tool_args = json.loads(tool_args)
+                    except json.JSONDecodeError:
+                        execution_results[tool_name] = f"Error: Invalid JSON arguments: {tool_args}"
+                        continue
+                
+                # Execute the tool if it's available
+                if tool_name in tool_map:
+                    func = tool_map[tool_name]
+                    try:
+                        result = func(**tool_args)
+                        execution_results[tool_name] = result
+                    except Exception as e:
+                        execution_results[tool_name] = f"Error executing {tool_name}: {str(e)}"
+                else:
+                    execution_results[tool_name] = f"Error: Tool '{tool_name}' not found in available tools"
+                    
+            except Exception as e:
+                execution_results[f"unknown_tool_{len(execution_results)}"] = f"Error processing tool call: {str(e)}"
+        
+        return execution_results
 
     def update_agent_context(self, agent_response: str = "", tool_results: dict = None) -> None:
         """Update the agent context with new response and tool results.
@@ -276,6 +346,18 @@ class OllamaClient:
             History from other agents
         """
         return self.history_from_other_agents
+
+    def get_tool_call_results(self) -> dict:
+        """Get tool call results.
+        
+        Returns:
+            Dictionary of tool call results
+        """
+        return self.tool_call_results.copy()
+
+    def clear_tool_call_results(self) -> None:
+        """Clear tool call results."""
+        self.tool_call_results.clear()
 
     def add_context_from_other_agents(self, context: str) -> None:
         """Add context from other agents to the conversation history.
@@ -422,6 +504,7 @@ class OllamaClient:
         # Use provided model or fall back to default
         model = model_name or self.default_model
         
+        
         # Build messages with system instructions and conversation history
         messages = []
         
@@ -439,7 +522,10 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": stream,
-            "keep_alive": "15m"  # Set keepalive for this request
+            "keep_alive": "15m",  # Set keepalive for this request
+            "options": {
+                "num_ctx": 64000  # Set context window to 64K tokens for better long conversation handling
+            }
         }
         
         # Add JSON schema if provided
@@ -471,22 +557,35 @@ class OllamaClient:
         """
         url = f"{self.base_url}/api/chat"
         payload = self._build_chat_payload(query, json_schema, tools, model_name, stream=False)
-        
+        self.query=query
         response = requests.post(url, json=payload, timeout=300)
         response.raise_for_status()
         
         data = response.json()
         message = data.get("message", {})
         assistant_response = message.get("content", "")
+        tool_calls = message.get("tool_calls", [])
+        
+        # Execute tool calls if they exist
+        tool_execution_results = {}
+        if tool_calls and tools:
+            tool_execution_results = self._execute_tool_calls(tool_calls, tools)
+            # Store tool call results in instance variable
+            self.tool_call_results.update(tool_execution_results)
         
         # Add user query and assistant response to conversation history
         self.conversation_history.append({"role": "user", "content": query})
         self.conversation_history.append({"role": "assistant", "content": assistant_response})
         
+        # Build agent context with actual tool execution results
+        self._build_agent_context(assistant_response, tool_execution_results)
+        
         return {
             "text": assistant_response,
             "raw": data,
-            "conversation_history": self.get_conversation_history()
+            "conversation_history": self.get_conversation_history(),
+            "tool_calls": tool_calls,
+            "tool_results": tool_execution_results
         }
 
     def invoke_streaming(
@@ -511,6 +610,8 @@ class OllamaClient:
         self.conversation_history.append({"role": "user", "content": query})
         
         full_response = ""
+        tool_calls = []
+        last_data = None
         
         with requests.post(url, json=payload, stream=True, timeout=300) as response:
             response.raise_for_status()
@@ -529,13 +630,26 @@ class OllamaClient:
                         yield content
                         
                     if data.get("done"):
+                        last_data = data
+                        # Tool calls are typically in the final message
+                        tool_calls = message.get("tool_calls", [])
                         break
                         
                 except json.JSONDecodeError:
                     continue
         
+        # Execute tool calls if they exist
+        tool_execution_results = {}
+        if tool_calls and tools:
+            tool_execution_results = self._execute_tool_calls(tool_calls, tools)
+            # Store tool call results in instance variable
+            self.tool_call_results.update(tool_execution_results)
+        
         # Add the complete assistant response to conversation history
         self.conversation_history.append({"role": "assistant", "content": full_response})
+        
+        # Build agent context with actual tool execution results
+        self._build_agent_context(full_response, tool_execution_results)
 
     def invoke_with_context(
         self,
@@ -582,13 +696,13 @@ if __name__ == "__main__":
 
     # Create an agent with system instructions, default model, and agent name
     agent = OllamaClient(
+        role="Python programming consultant",
         model_name="llama3.2:3b",
         system_instructions="You are a helpful programming assistant. Always be concise and accurate.",
         agent_name="PythonExpert"
     )
     
     # Set up agent properties
-    agent.set_role("Python programming consultant")
     agent.set_generic_agent_instructions("Provide accurate Python programming advice")
     agent.set_all_tool_names("get_weather")
 
@@ -631,14 +745,26 @@ if __name__ == "__main__":
         content = msg['content'][:80] + "..." if len(msg['content']) > 80 else msg['content']
         print(f"{i+1}. {role}: {content}")
     
-    # Example 6: Agent properties
+    # Example 6: Tool call functionality (simulated)
+    print(f"\n=== Tool Call Functionality Example ===")
+    print("Note: This would work with models that support tool calls")
+    
+    # Simulate tool calls result manually for demonstration
+    tool_result = agent.invoke("What's the weather like?", tools=[get_weather])
+    print(f"Q: What's the weather like?")
+    print(f"A: {tool_result['text'][:100]}...")
+    print(f"Tool calls made: {tool_result.get('tool_calls', [])}")
+    print(f"Tool results: {tool_result.get('tool_results', {})}")
+    print(f"Stored tool call results: {agent.get_tool_call_results()}")
+    
+    # Example 7: Agent properties
     print(f"\n=== Agent Properties ===")
     print(f"Agent Name: {agent.agent_name}")
     print(f"Role: {agent.get_role()}")
     print(f"Generic Instructions: {agent.get_generic_agent_instructions()}")
     print(f"Available Tools: {agent.get_all_tool_names()}")
     
-    # Example 7: Clear history and start fresh
+    # Example 8: Clear history and start fresh
     print(f"\n=== Starting Fresh ===")
     agent.clear_conversation_history()
     result4 = agent.invoke("Hello, I'm new here!")
