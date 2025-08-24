@@ -13,24 +13,30 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def tavily_search(
+def deep_tavily_search(
     query1: str,
     query2: str, 
     query3: str,
+    query4: str,
+    query5: str,
+    query6: str,
     max_results: int = 15, 
     api_key: Optional[str] = None,
     include_domains: Optional[List[str]] = None,
     exclude_domains: Optional[List[str]] = None
 ) -> str:
     """
-    Search the web using Tavily API for 3 variations of the user question and return formatted results in XML chunks as a string output. 
+    Search the web using Tavily API for 6 questions and return formatted results in XML chunks as a string output. 
     Use this when the user asks for information which might require recent information or recent documentation. 
-    Use it if you need more information. The 3 queries are different formulations of the same question.
+    Use it if you need more information. The 6 queries are different formulations of the same question.
     
     Args:
         query1 (str): The first search query to look up.
         query2 (str): The second search query to look up.
         query3 (str): The third search query to look up.
+        query4 (str): The fourth search query to look up.
+        query5 (str): The fifth search query to look up.
+        query6 (str): The sixth search query to look up.
     
     Returns:
         str: Search results formatted in XML chunks
@@ -46,8 +52,8 @@ def tavily_search(
     if not api_key:
         return "<error>Tavily API key not found. Please provide api_key parameter or set TAVILY_API_KEY environment variable.</error>"
     
-    # Construct queries list from the three query arguments
-    queries = [query1, query2, query3]
+    # Construct queries list from the six query arguments
+    queries = [query1, query2, query3, query4, query5, query6]
     
     # Filter out empty or None queries
     queries = [q for q in queries if q and q.strip()]
@@ -211,7 +217,7 @@ def quick_search(query: str, num_results: int = 3) -> str:
     Returns:
         str: Formatted search results
     """
-    return tavily_search(query, query, query, num_results)
+    return tavily_search(query, query, query, query, query, query, num_results)
 
 
 def test_tavily_search():
@@ -234,22 +240,28 @@ def test_tavily_search():
     
     print(f"✅ API key found!")
     
-    # Test: Three query parameters
-    print("\n📝 Test: Three Query Parameters")
+    # Test: Six query parameters
+    print("\n📝 Test: Six Query Parameters")
     print("-" * 30)
     query1 = "Python async programming"
     query2 = "ThreadPoolExecutor tutorial"
     query3 = "Tavily API documentation"
+    query4 = "Python concurrency best practices"
+    query5 = "asyncio vs threading comparison"
+    query6 = "Web search API integration"
     max_results = 2
     
     print(f"Query 1: {query1}")
     print(f"Query 2: {query2}")
     print(f"Query 3: {query3}")
+    print(f"Query 4: {query4}")
+    print(f"Query 5: {query5}")
+    print(f"Query 6: {query6}")
     print(f"Max Results per query: {max_results}")
     print("\nSearch Results:")
     print("-" * 20)
     
-    results = tavily_search(query1, query2, query3, max_results)
+    results = tavily_search(query1, query2, query3, query4, query5, query6, max_results)
     print(f"Result length: {len(results)} characters")
     print("First 800 characters:")
     print(results[:800] + "..." if len(results) > 800 else results)
@@ -257,7 +269,7 @@ def test_tavily_search():
     print("\n" + "=" * 50)
     print("✅ Tests completed!")
     print(f"Result length: {len(results)} characters")
-    print("✅ Three-parameter query functionality working!")
+    print("✅ Six-parameter query functionality working!")
 
 
 if __name__ == "__main__":
