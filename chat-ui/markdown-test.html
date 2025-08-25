@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Test</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@5.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.3/dist/purify.min.js"></script>
+</head>
+<body style="padding: 20px; background: #0f0f0f; color: white;">
+    <div class="message assistant">
+        <div class="message-avatar">
+            <i class="fas fa-robot"></i>
+        </div>
+        <div class="message-content" id="test-content">
+            <!-- Content will be inserted here -->
+        </div>
+    </div>
+
+    <script>
+        const testMarkdown = `# Hello World
+
+This is a **test** of the *markdown* rendering system.
+
+## Code Example
+
+Here's some Python code:
+
+\`\`\`python
+def hello_world():
+    print("Hello, World!")
+    return True
+\`\`\`
+
+## List Example
+
+- Item 1
+- Item 2
+  - Nested item
+- Item 3
+
+## Table Example
+
+| Name | Age | City |
+|------|-----|------|
+| John | 25  | NYC  |
+| Jane | 30  | LA   |
+
+## Blockquote
+
+> This is a blockquote with some important information.
+
+## Inline Code
+
+Use \`console.log()\` to print to the console.
+`;
+
+        const content = document.getElementById('test-content');
+        const markdownHtml = marked.parse(testMarkdown);
+        const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
+        content.innerHTML = sanitizedHtml;
+    </script>
+</body>
+</html>

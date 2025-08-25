@@ -19,7 +19,20 @@ from pathlib import Path
 
 # Add the parent directory to the path to import our OpenAI client
 sys.path.append(str(Path(__file__).parent.parent))
-from openai_client import OpenAIClient
+from openai_client import OpenAIClient 
+from ollama_client import OllamaClient
+from deep_research_agents import deep_research_clarification_agent
+
+provider = 'ollama'
+if provider == "openai":
+    Client  = OpenAIClient
+    model1 = 'gpt-5-nano'
+    model2 = 'gpt-5-mini'
+
+else:
+    Client = OllamaClient
+    model1 = "qwen3:8b"
+    model2 = "mistral-small3.2:latest"
 
 # ===========================================
 # FASTAPI APP INITIALIZATION
@@ -47,8 +60,13 @@ templates_path = Path(__file__).parent / "templates"
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 templates = Jinja2Templates(directory=templates_path)
 
-# Initialize OpenAI client
-openai_client = OpenAIClient()
+# Initialize the selected client
+if provider == "openai":
+    client = Client()
+else:
+    client = Client(role="chat_assistant")
+
+
 
 # ===========================================
 # PYDANTIC MODELS
@@ -83,21 +101,21 @@ AGENT_CONFIGS = {
         "system_prompt": """You are Jarvis, a highly intelligent and helpful AI assistant. 
         You are knowledgeable, professional, and always aim to provide accurate and useful information. 
         Be conversational but precise in your responses.""",
-        "model": "gpt-4"
+        "model": model1
     },
-    "research": {
-        "name": "Research Specialist", 
+    "deep-research": {
+        "name": "Deep Research", 
         "system_prompt": """You are Jarvis, a specialized research assistant with expertise in 
         academic research, data analysis, and information synthesis. Provide detailed, well-sourced 
         responses with critical analysis and multiple perspectives when appropriate.""",
-        "model": "gpt-4"
+        "model": model2
     },
     "coding": {
         "name": "Code Assistant",
         "system_prompt": """You are Jarvis, a senior software engineer and coding assistant. 
         You excel at explaining programming concepts, debugging code, suggesting best practices, 
         and helping with software architecture decisions. Provide clear, practical coding solutions.""",
-        "model": "gpt-4"
+        "model": model1
     }
 }
 
@@ -111,7 +129,7 @@ def get_agent_config(agent_type: str) -> Dict[str, Any]:
 
 def estimate_tokens(text: str) -> int:
     """Estimate token count for a given text."""
-    return len(text.split()) * 1.3  # Rough estimation
+    return int(len(text.split()) * 1.3)  # Rough estimation
 
 def format_agent_prompt(agent_config: Dict[str, Any], user_message: str) -> str:
     """Format the complete prompt for an agent."""
@@ -146,23 +164,40 @@ async def chat_non_streaming(request: ChatRequest):
     
     try:
         # Get agent configuration
+        print(request.agent)
+        if request.agent == "deep-research":
+            print("here")
+            print(request.message)
+            clarifying_questions = deep_research_clarification_agent(request.message, model=model2, client=OllamaClient)
+            processing_time = time.time() - start_time
+            token_count = estimate_tokens(clarifying_questions)
+            print("tokens: ", token_count)
+            return ChatResponse(
+                response=clarifying_questions,
+                agent=request.agent,
+                timestamp=time.time(),
+                token_count=token_count,
+                processing_time=processing_time
+            )
+        print(request)
         agent_config = get_agent_config(request.agent)
-        
+        print(agent_config)
         # Prepare the prompt
         prompt = format_agent_prompt(agent_config, request.message)
-        
-        # Call OpenAI API (non-streaming)
-        response = openai_client.invoke(
-            prompt=prompt,
-            model=agent_config["model"],
-            temperature=request.temperature,
-            max_completion_tokens=request.max_tokens,
-            stream=False
+        print(prompt)
+
+        # Call API (non-streaming)
+        response_data = client.invoke(
+            query=prompt,
+            model_name=model2,
         )
         
+        # Extract the text response from the Ollama client response
+        response = response_data.get("text", "") if isinstance(response_data, dict) else str(response_data)
+        print(response, type(response))
         processing_time = time.time() - start_time
         token_count = estimate_tokens(response)
-        
+        print("tokens: ", token_count)
         return ChatResponse(
             response=response,
             agent=request.agent,
@@ -180,19 +215,24 @@ async def chat_streaming(request: ChatRequest):
     try:
         # Get agent configuration
         agent_config = get_agent_config(request.agent)
-        
+        print(agent_config)
+
+        # Configure the deep research behaviour
+        if agent_config['name'] == 'Deep Research':
+            # Specific configuration for deep research
+            pass
+            
         # Prepare the prompt
         prompt = format_agent_prompt(agent_config, request.message)
         
         async def generate_stream():
             """Generate streaming response."""
             try:
-                # Call OpenAI API (streaming)
-                stream = openai_client.invoke_streaming(
-                    prompt=prompt,
-                    model=agent_config["model"],
-                    temperature=request.temperature,
-                    max_completion_tokens=request.max_tokens
+                client = Client(role="ClarifyingQuestions")
+                # Call API (streaming)
+                stream = client.invoke_streaming(
+                    query=prompt,
+                    model_name=agent_config["model"],
                 )
                 
                 # Process streaming response
@@ -323,12 +363,10 @@ async def get_available_models():
     # For now, we'll return the models we know are available
     return {
         "models": [
-            "gpt-4",
-            "gpt-4-turbo",
-            "gpt-3.5-turbo",
-            "gpt-3.5-turbo-16k"
+            "gpt-5-nano",
+            "gpt-5-mini",
         ],
-        "default_model": "gpt-4"
+        "default_model": "gpt-5-nano"
     }
 
 # ===========================================
@@ -374,7 +412,7 @@ async def add_process_time_header(request: Request, call_next):
 if __name__ == "__main__":
     # Get configuration from environment variables
     host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
+    port = int(os.getenv("PORT", 8001))
     debug = os.getenv("DEBUG", "true").lower() == "true"
     
     print(f"""
@@ -384,7 +422,7 @@ if __name__ == "__main__":
     
     Server starting on: http://{host}:{port}
     Debug mode: {debug}
-    OpenAI Client: {'✓ Connected' if openai_client else '✗ Not connected'}
+    Provider: {provider}
     Available Agents: {len(AGENT_CONFIGS)}
     
     API Endpoints:
@@ -399,10 +437,21 @@ if __name__ == "__main__":
     """)
     
     # Run the application
-    uvicorn.run(
-        "main:app" if __name__ != "__main__" else app,
-        host=host,
-        port=port,
-        reload=debug,
-        log_level="info" if debug else "warning"
-    )
+    if debug:
+        # In debug mode, use reload which requires import string
+        uvicorn.run(
+            "main:app",
+            host=host,
+            port=port,
+            reload=True,
+            log_level="info"
+        )
+    else:
+        # In production mode, use app object directly
+        uvicorn.run(
+            app,
+            host=host,
+            port=port,
+            reload=False,
+            log_level="warning"
+        )

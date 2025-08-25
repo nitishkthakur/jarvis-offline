@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked@5.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.3/dist/purify.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -40,12 +42,12 @@
                             <span class="agent-status">Active</span>
                         </div>
                     </div>
-                    <div class="agent-item" data-agent="research">
+                    <div class="agent-item" data-agent="deep-research">
                         <div class="agent-avatar">
                             <i class="fas fa-search"></i>
                         </div>
                         <div class="agent-info">
-                            <span class="agent-name">Research Specialist</span>
+                            <span class="agent-name">Deep Research</span>
                             <span class="agent-status">Available</span>
                         </div>
                     </div>
@@ -145,7 +147,7 @@
                     </div>
                     <div class="input-footer">
                         <div class="streaming-toggle">
-                            <input type="checkbox" id="streamingMode" checked>
+                            <input type="checkbox" id="streamingMode">
                             <label for="streamingMode">
                                 <i class="fas fa-stream"></i>
                                 Streaming Mode

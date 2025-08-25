@@ -4,7 +4,7 @@
 
 class ChatApp {
     constructor() {
-        this.isStreaming = true;
+        this.isStreaming = false;
         this.messageCount = 0;
         this.tokenCount = 0;
         this.sessionStartTime = Date.now();
@@ -165,7 +165,10 @@ class ChatApp {
                             const parsed = JSON.parse(data);
                             if (parsed.content) {
                                 accumulatedText += parsed.content;
-                                messageContent.textContent = accumulatedText;
+                                // Render accumulated text as markdown for streaming
+                                const markdownHtml = marked.parse(accumulatedText);
+                                const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
+                                messageContent.innerHTML = sanitizedHtml;
                                 this.scrollToBottom();
                             }
                         } catch (e) {
@@ -175,6 +178,9 @@ class ChatApp {
                 }
             }
 
+            // Add copy buttons to code blocks after streaming is complete
+            this.addCopyButtonsToCodeBlocks(assistantMessage);
+            
             this.messageCount++;
             this.tokenCount += this.estimateTokens(message + accumulatedText);
             this.updateStats();
@@ -241,6 +247,52 @@ class ChatApp {
         this.scrollToBottom();
     }
 
+    addCopyButtonsToCodeBlocks(container) {
+        const codeBlocks = container.querySelectorAll('pre');
+        codeBlocks.forEach(pre => {
+            // Create copy button
+            const copyButton = document.createElement('button');
+            copyButton.className = 'copy-button';
+            copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+            copyButton.title = 'Copy code';
+            
+            // Add click handler
+            copyButton.addEventListener('click', async () => {
+                const code = pre.querySelector('code');
+                const text = code ? code.textContent : pre.textContent;
+                
+                try {
+                    await navigator.clipboard.writeText(text);
+                    copyButton.innerHTML = '<i class="fas fa-check"></i>';
+                    copyButton.style.background = 'var(--accent-success)';
+                    
+                    setTimeout(() => {
+                        copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                        copyButton.style.background = '';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    
+                    copyButton.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 2000);
+                }
+            });
+            
+            // Add button to pre element
+            pre.style.position = 'relative';
+            pre.appendChild(copyButton);
+        });
+    }
+
     createMessageElement(content, sender) {
         const messageDiv = document.createElement('div');
         messageDiv.className = `message ${sender}`;
@@ -256,7 +308,20 @@ class ChatApp {
 
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
-        messageContent.textContent = content;
+        
+        // Render content based on sender
+        if (sender === 'assistant') {
+            // Render markdown for assistant messages
+            const markdownHtml = marked.parse(content);
+            const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
+            messageContent.innerHTML = sanitizedHtml;
+            
+            // Add copy buttons to code blocks
+            this.addCopyButtonsToCodeBlocks(messageContent);
+        } else {
+            // Plain text for user messages
+            messageContent.textContent = content;
+        }
 
         const messageTime = document.createElement('div');
         messageTime.className = 'message-time';
@@ -332,19 +397,19 @@ class ChatApp {
     updateAgentHeader(agentType) {
         const agentNames = {
             general: 'General Assistant',
-            research: 'Research Specialist',
+            'deep-research': 'Deep Research',
             coding: 'Code Assistant'
         };
         
         const agentDescriptions = {
             general: 'Ready to help with any questions',
-            research: 'Specialized in research and analysis',
+            'deep-research': 'Specialized in deep research and analysis',
             coding: 'Expert in programming and development'
         };
         
         const agentIcons = {
             general: 'fas fa-brain',
-            research: 'fas fa-search',
+            'deep-research': 'fas fa-search',
             coding: 'fas fa-code'
         };
         

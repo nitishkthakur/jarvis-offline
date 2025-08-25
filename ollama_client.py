@@ -524,7 +524,7 @@ class OllamaClient:
             "stream": stream,
             "keep_alive": "15m",  # Set keepalive for this request
             "options": {
-                "num_ctx": 64000  # Set context window to 64K tokens for better long conversation handling
+                "num_ctx": 8000  # Set context window to 64K tokens for better long conversation handling
             }
         }
         
@@ -559,6 +559,7 @@ class OllamaClient:
         payload = self._build_chat_payload(query, json_schema, tools, model_name, stream=False)
         self.query=query
         response = requests.post(url, json=payload, timeout=300)
+        print(response.json())
         response.raise_for_status()
         
         data = response.json()
@@ -697,7 +698,7 @@ if __name__ == "__main__":
     # Create an agent with system instructions, default model, and agent name
     agent = OllamaClient(
         role="Python programming consultant",
-        model_name="llama3.2:3b",
+        model_name="mistral-small3.2:latest",
         system_instructions="You are a helpful programming assistant. Always be concise and accurate.",
         agent_name="PythonExpert"
     )
