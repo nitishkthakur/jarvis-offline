@@ -8,10 +8,14 @@ import requests
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dotenv import load_dotenv
-
+from tools import tavily_search
 # Load environment variables from .env file
 load_dotenv()
+def add_agent_response_and_user_answer(agent_response: str, user_answers: str) -> str:
+    agent_response = """\n\nagent_response: """ + agent_response
+    user_answers = """\n\nuser_answers: """ + user_answers
 
+    return agent_response + user_answers
 
 def deep_tavily_search(
     query1: str,

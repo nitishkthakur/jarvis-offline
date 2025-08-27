@@ -1,10 +1,10 @@
-# 🤖 Jarvis AI Chat Interface
+# Jarvis AI Chat Interface
 
 A professional ChatGPT-like web interface with FastAPI backend, featuring streaming responses, multiple AI agents, and a beautiful dark theme.
 
-## ✨ Features
+## Features
 
-### 🎨 Frontend
+### Frontend
 - **Professional Dark Theme**: Minimalist design with custom color system
 - **Responsive Design**: Works perfectly on desktop, tablet, and mobile
 - **Real-time Streaming**: Live streaming responses with typing indicators
@@ -12,7 +12,7 @@ A professional ChatGPT-like web interface with FastAPI backend, featuring stream
 - **Modern UI**: Clean interface with smooth animations
 - **Keyboard Shortcuts**: Productivity-focused hotkeys
 
-### 🚀 Backend
+### Backend
 - **FastAPI Framework**: High-performance async API
 - **Streaming & Non-streaming**: Both response modes supported
 - **Agent Management**: Configurable AI agents with specialized prompts
@@ -20,7 +20,7 @@ A professional ChatGPT-like web interface with FastAPI backend, featuring stream
 - **CORS Support**: Full cross-origin resource sharing
 - **Health Monitoring**: Built-in health checks and status endpoints
 
-### 🔧 Technical Stack
+### Technical Stack
 - **Frontend**: HTML5, CSS3, Vanilla JavaScript
 - **Backend**: FastAPI, Python 3.8+
 - **AI Integration**: OpenAI GPT-4 API
@@ -28,7 +28,7 @@ A professional ChatGPT-like web interface with FastAPI backend, featuring stream
 - **Icons**: Font Awesome 6
 - **Fonts**: Inter (Google Fonts)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8 or higher
@@ -71,7 +71,7 @@ A professional ChatGPT-like web interface with FastAPI backend, featuring stream
 6. **Open your browser**
    Navigate to `http://localhost:8000`
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 chat-ui/
@@ -86,7 +86,7 @@ chat-ui/
     └── index.html         # Main HTML template
 ```
 
-## 🎛️ API Endpoints
+## API Endpoints
 
 ### Chat Endpoints
 - `POST /api/chat` - Non-streaming chat completion
@@ -101,7 +101,7 @@ chat-ui/
 - `GET /api/status` - System status
 - `GET /api/models` - Available models
 
-## 🤖 Available Agents
+## Available Agents
 
 ### General Assistant
 - **Purpose**: General knowledge and conversation
@@ -118,12 +118,14 @@ chat-ui/
 - **Model**: GPT-4
 - **Best for**: Code review, debugging, architecture advice
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 - `Enter` - Send message
 - `Shift + Enter` - New line in message
 - `Ctrl/Cmd + Enter` - Force send message
-- `Escape` - Focus on input field
+- `Escape`: Close settings
+
+## Development
 - `Ctrl/Cmd + K` - Start new chat
 
 ## 🎨 Customization
@@ -209,7 +211,7 @@ python main.py
 4. Test thoroughly
 5. Submit a pull request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 

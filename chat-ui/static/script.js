@@ -8,7 +8,7 @@ class ChatApp {
         this.messageCount = 0;
         this.tokenCount = 0;
         this.sessionStartTime = Date.now();
-        this.currentAgent = 'general';
+        this.currentAgent = 'deep-research';
         this.isProcessing = false;
         
         this.init();

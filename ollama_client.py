@@ -339,6 +339,7 @@ class OllamaClient:
         """
         self.history_from_other_agents = history
 
+
     def get_history_from_other_agents(self) -> str:
         """Get history from other agents.
         
@@ -522,9 +523,9 @@ class OllamaClient:
             "model": model,
             "messages": messages,
             "stream": stream,
-            "keep_alive": "15m",  # Set keepalive for this request
+            "keep_alive": "25m",  # Set keepalive for this request
             "options": {
-                "num_ctx": 8000  # Set context window to 64K tokens for better long conversation handling
+                "num_ctx": 16000  # Set context window to 64K tokens for better long conversation handling
             }
         }
         
@@ -558,7 +559,7 @@ class OllamaClient:
         url = f"{self.base_url}/api/chat"
         payload = self._build_chat_payload(query, json_schema, tools, model_name, stream=False)
         self.query=query
-        response = requests.post(url, json=payload, timeout=300)
+        response = requests.post(url, json=payload, timeout=3*300)
         print(response.json())
         response.raise_for_status()
         
