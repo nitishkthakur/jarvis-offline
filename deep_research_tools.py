@@ -76,7 +76,7 @@ def deep_tavily_search(
             "search_depth": "advanced",
             "include_raw_content": False,
             "max_results": max_results,
-            "chunks_per_source": 2,
+            "chunks_per_source": 1,
             "include_answer": False,
             "include_images": False
         }
