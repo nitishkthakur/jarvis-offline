@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test script for OpenRouter tool calling implementation."""
 
-from openrouter_client import OpenRouterClient
+from openrouter_client import Client
 
 def get_weather(location: str) -> str:
     """Get the weather for a location (mock function)."""
@@ -17,7 +17,7 @@ def calculate(expression: str) -> str:
 
 def main():
     """Test OpenRouter tool calling."""
-    client = OpenRouterClient(role="You are a helpful assistant that can use tools to help users.")
+    client = Client(role="You are a helpful assistant that can use tools to help users.")
     
     # Test 1: Basic tool calling
     print("=== Test 1: Basic Tool Calling ===")

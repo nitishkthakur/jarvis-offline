@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from openrouter_client import OpenRouterClient
+from openrouter_client import Client
 import inspect
 
 def test_weather(location: str) -> str:
@@ -18,7 +18,7 @@ def main():
     
     # Test class initialization with fake API key
     try:
-        client = OpenRouterClient(
+        client = Client(
             role="Test assistant", 
             api_key="fake_key_for_testing"
         )

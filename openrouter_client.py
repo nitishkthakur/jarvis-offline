@@ -40,8 +40,8 @@ Here is the required context (if any) that you should refer to:
 
 """
 
-class OpenRouterClient:
-    """A simplified agent client for interacting with OpenRouter API."""
+class Client:
+    """OpenRouter API client that replicates OllamaClient functionality."""
     
     TYPE_MAPPING = {
         str: "string",
@@ -1080,6 +1080,10 @@ class OpenRouterClient:
         )
 
 
+# Backward compatibility alias for existing code
+OpenRouterClient = Client
+
+
 if __name__ == "__main__":
     """Example usage demonstrating conversation history and agent context features."""
     from pydantic import BaseModel
@@ -1114,7 +1118,7 @@ if __name__ == "__main__":
         exit(1)
 
     # Create an agent with system instructions, default model, and agent name
-    agent = OpenRouterClient(
+    agent = Client(
         role="Python programming consultant",
         model_name="openai/gpt-oss-120b:free",
         system_instructions="You are a helpful programming assistant. Always be concise and accurate.",

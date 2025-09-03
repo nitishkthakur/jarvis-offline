@@ -2,6 +2,8 @@
 
 This module provides a complete OpenRouter API client that replicates the functionality of the OllamaClient while using OpenRouter's API for enhanced model access and capabilities.
 
+The main class is `Client` which follows the requested structure for tool calling and agent management.
+
 ## Features
 
 - **Full OpenRouter API Integration**: Complete implementation matching OllamaClient interface
@@ -26,22 +28,42 @@ export OPENROUTER_API_KEY="your-api-key-here"
 
 Or pass it directly when initializing the client:
 ```python
-client = OpenRouterClient(role="Your role", api_key="your-api-key")
+client = Client(role="Your role", api_key="your-api-key")
 ```
 
 ## Usage
 
-### Basic Usage
+### Basic Usage (Requested Structure)
 
 ```python
-from openrouter_client import OpenRouterClient
+from openrouter_client import Client
+
+# Initialize with the exact structure requested
+task = "You are a helpful search agent"
+model2 = "openai/gpt-oss-120b:free"
+
+re_phrase_agent = Client(role=task, model_name=model2, agent_name="SearchAgent")
+
+# Use invoke with tools as requested
+search_queries = re_phrase_agent.invoke(
+    query="""Hey Man. i love coding. 
+                   I wanted to ask you several questions one of which is: What is the latest version of gpt out there?""", 
+    tools=[tavily_search]
+)
+```
+
+### Simple Query
+
+```python
+from openrouter_client import Client
 
 # Initialize the client
-client = OpenRouterClient(role="You are a helpful assistant")
+client = Client(role="You are a helpful assistant")
 
 # Simple query
-response = client.invoke("What is the capital of France?")
+response = client.invoke(query="What is the capital of France?")
 print(response["response"])
+```
 ```
 
 ### Tool Calling
@@ -114,15 +136,15 @@ for chunk in client.invoke_streaming("Tell me a story about AI"):
 
 ## API Reference
 
-### OpenRouterClient Class
+### Client Class
 
 #### Constructor Parameters
 
 - `role` (str): System role/instructions for the agent
+- `model_name` (str, optional): Model to use (defaults to "openai/gpt-oss-120b:free")
+- `agent_name` (str, optional): Name for agent context tracking
 - `api_key` (str, optional): OpenRouter API key (uses env var if not provided)
 - `base_url` (str, optional): Custom API base URL
-- `default_model` (str, optional): Default model to use
-- `agent_name` (str, optional): Name for agent context tracking
 
 #### Main Methods
 
