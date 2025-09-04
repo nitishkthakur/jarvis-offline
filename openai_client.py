@@ -67,7 +67,7 @@ class OpenAIClient:
     client = OpenAIClient(
         role="information_extractor",
         api_key="your-openai-api-key",
-        model_name="gpt-5-mini"  # Supports structured outputs
+        model_name="gpt-5-nano"  # Supports structured outputs
     )
     
     # Use structured output
@@ -124,7 +124,7 @@ class OpenAIClient:
         role: str,
         history_from_other_agents: str = "",
         api_key: str = None,
-        model_name: str = "gpt-5-mini",
+        model_name: str = "gpt-5-nano",
         this_agent_context: str = "",
         system_instructions: str = "",
         agent_name: str = ""
@@ -133,7 +133,7 @@ class OpenAIClient:
         
         Args:
             api_key: OpenAI API key (if None, will use OPENAI_API_KEY env var)
-            model_name: Default model to use for all interactions
+            model_name: Default model to use for all interactions (defaults to gpt-5-nano)
             system_instructions: System instructions to guide the agent's behavior
             agent_name: Name/identifier for this agent
         """
@@ -1043,7 +1043,7 @@ from openai_client import OpenAIClient
 
 client = OpenAIClient(
     role="information_extractor",
-    model_name="gpt-5-mini"
+    model_name="gpt-5-nano"
 )
 
 # Define a schema for person information
@@ -1099,7 +1099,7 @@ print(response['text'])  # Same result, but using Pydantic model
     # Create an agent with system instructions, default model, and agent name
     agent = OpenAIClient(
         role="Python programming consultant",
-        model_name="gpt-5-mini",
+        model_name="gpt-5-nano",
         system_instructions="You are a helpful programming assistant. Always be concise and accurate.",
         agent_name="PythonExpert"
     )

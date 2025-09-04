@@ -525,7 +525,7 @@ class OllamaClient:
             "stream": stream,
             "keep_alive": "25m",  # Set keepalive for this request
             "options": {
-                "num_ctx": 12000  # Set context window to 64K tokens for better long conversation handling
+                "num_ctx": 10000  # Set context window to 10000 tokens for better long conversation handling
             }
         }
         
