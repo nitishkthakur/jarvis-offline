@@ -6,6 +6,7 @@ import subprocess
 import time
 import shutil
 import datetime
+import re
 CURRENT_DATE=datetime.datetime.now().strftime("%d %b %Y")
 GENERIC_AGENT_INSTRUCTIONS = """You are a helpful Agent among a group of agents trying to solve a problem. Each agent is tasked with a part or the entire problem.
 You will be given your task. You will have access to all the relevant information and tools. You can also see the work already done by other agents. Use that information if required.
@@ -92,12 +93,12 @@ class OllamaClient:
                                                                             CURRENT_DATE=CURRENT_DATE)
         self.system_instructions = self.generic_agent_instructions
         
-        
-
-
+        # Default embedding model
+        self.default_embedding_model = "bge-m3"
         
         self._ensure_server_ready()
         self._set_model_keepalive()
+        self._set_embedding_model_keepalive()
 
     def _is_server_running(self) -> bool:
         """Check if Ollama server is running."""
@@ -147,6 +148,20 @@ class OllamaClient:
             # Don't raise for status here as this is just a keepalive setting
         except Exception:
             # If setting keepalive fails, continue anyway
+            pass
+
+    def _set_embedding_model_keepalive(self) -> None:
+        """Set the embedding model keepalive to 3 hours."""
+        try:
+            # Load the embedding model with 3 hour keepalive setting
+            payload = {
+                "model": self.default_embedding_model,
+                "keep_alive": "3h"
+            }
+            response = requests.post(f"{self.base_url}/api/generate", json=payload, timeout=30)
+            # Don't raise for status here as this is just a keepalive setting
+        except Exception:
+            # If setting embedding model keepalive fails, continue anyway
             pass
 
     def set_system_instructions(self, instructions: str) -> None:
@@ -371,6 +386,120 @@ class OllamaClient:
                 "role": "user",
                 "content": f"Context from other agents: {context}"
             })
+
+    def text_retrieve(self, document_store: str, query: str, top_n: int = 5, chunk_size: int = 4000) -> str:
+        """Split document store into chunks and return top_n chunks formatted with XML tags.
+        
+        Uses an iterative splitting approach:
+        1. First split on paragraphs (\\n\\n)
+        2. Then on lines (\\n)
+        3. Finally on sentences (delimited by .)
+        
+        Args:
+            document_store: The document text to split
+            query: The search query (currently not used for retrieval, returns first top_n chunks)
+            top_n: Number of chunks to return (default: 5)
+            chunk_size: Target size for each chunk in characters (default: 4000)
+            
+        Returns:
+            Concatenated chunks formatted as <chunk 1>content</chunk 1>\\n\\n<chunk 2>content</chunk 2>...
+        """
+        def split_text_iteratively(text: str, target_size: int) -> list[str]:
+            """Split text iteratively using paragraph, line, then sentence boundaries."""
+            if not text.strip():
+                return []
+            
+            # If text is already smaller than target, return as is
+            if len(text) <= target_size:
+                return [text.strip()]
+            
+            chunks = []
+            
+            # Step 1: Split on paragraphs (\n\n)
+            paragraphs = re.split(r'\n\n+', text)
+            
+            current_chunk = ""
+            for paragraph in paragraphs:
+                # If adding this paragraph would exceed chunk size
+                if current_chunk and len(current_chunk) + len(paragraph) + 2 > target_size:
+                    # Save current chunk and start new one
+                    if current_chunk.strip():
+                        chunks.append(current_chunk.strip())
+                    current_chunk = paragraph
+                else:
+                    # Add paragraph to current chunk
+                    if current_chunk:
+                        current_chunk += "\n\n" + paragraph
+                    else:
+                        current_chunk = paragraph
+                
+                # If even a single paragraph is too large, split it further
+                if len(current_chunk) > target_size:
+                    if current_chunk.strip():
+                        # Split by lines
+                        lines = current_chunk.split('\n')
+                        line_chunk = ""
+                        
+                        for line in lines:
+                            if line_chunk and len(line_chunk) + len(line) + 1 > target_size:
+                                if line_chunk.strip():
+                                    chunks.append(line_chunk.strip())
+                                line_chunk = line
+                            else:
+                                if line_chunk:
+                                    line_chunk += "\n" + line
+                                else:
+                                    line_chunk = line
+                            
+                            # If even a single line is too large, split by sentences
+                            if len(line_chunk) > target_size:
+                                sentences = re.split(r'(?<=[.!?])\s+', line_chunk)
+                                sentence_chunk = ""
+                                
+                                for sentence in sentences:
+                                    if sentence_chunk and len(sentence_chunk) + len(sentence) + 1 > target_size:
+                                        if sentence_chunk.strip():
+                                            chunks.append(sentence_chunk.strip())
+                                        sentence_chunk = sentence
+                                    else:
+                                        if sentence_chunk:
+                                            sentence_chunk += " " + sentence
+                                        else:
+                                            sentence_chunk = sentence
+                                    
+                                    # If even a sentence is too large, take it as is (avoid infinite splitting)
+                                    if len(sentence_chunk) > target_size and sentence_chunk.strip():
+                                        chunks.append(sentence_chunk.strip())
+                                        sentence_chunk = ""
+                                
+                                if sentence_chunk.strip():
+                                    line_chunk = sentence_chunk
+                                else:
+                                    line_chunk = ""
+                        
+                        if line_chunk.strip():
+                            current_chunk = line_chunk
+                        else:
+                            current_chunk = ""
+            
+            # Add any remaining chunk
+            if current_chunk.strip():
+                chunks.append(current_chunk.strip())
+            
+            return chunks
+        
+        # Split the document into chunks
+        chunks = split_text_iteratively(document_store, chunk_size)
+        
+        # Take only the first top_n chunks (in a real implementation, you'd rank by relevance to query)
+        selected_chunks = chunks[:top_n]
+        
+        # Format chunks with XML tags
+        formatted_chunks = []
+        for i, chunk in enumerate(selected_chunks, 1):
+            formatted_chunks.append(f"<chunk {i}>{chunk}</chunk {i}>")
+        
+        return "\n\n".join(formatted_chunks)
 
     def _get_json_type(self, python_type: t.Any) -> str:
         """Convert Python type to JSON schema type."""
