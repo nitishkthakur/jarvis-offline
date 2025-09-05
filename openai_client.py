@@ -187,10 +187,12 @@ class OpenAIClient:
     def set_default_model(self, model_name: str) -> None:
         """Update the default model for the agent.
         
+        Note: This client only supports gpt-5-nano, so model_name is ignored.
+        
         Args:
-            model_name: New default model name
+            model_name: New default model name (ignored - always uses gpt-5-nano)
         """
-        self.default_model = model_name
+        self.default_model = "gpt-5-nano"  # Force to gpt-5-nano only
 
     def get_conversation_history(self) -> list[dict]:
         """Get the current conversation history.
@@ -504,7 +506,7 @@ class OpenAIClient:
 
     def _supports_structured_outputs(self, model_name: str = None) -> bool:
         """Check if the model supports OpenAI Structured Outputs."""
-        model = model_name or self.default_model
+        model = "gpt-5-nano"  # Only using gpt-5-nano now
         
         # Models that support structured outputs as per OpenAI documentation
         supported_models = [
@@ -558,8 +560,8 @@ class OpenAIClient:
         stream: bool = False,
     ) -> dict:
         """Build the payload for OpenAI chat API."""
-        # Use provided model or fall back to default
-        model = model_name or self.default_model
+        # Force model to gpt-5-nano only
+        model = "gpt-5-nano"
         
         # Build messages with system instructions and conversation history
         messages = []
@@ -624,14 +626,139 @@ class OpenAIClient:
     ) -> dict:
         """Send a query to OpenAI and return the response.
         
+        Uses the newer Responses API (/v1/responses) when possible, falls back to 
+        chat/completions for tool calls. Only uses gpt-5-nano model.
+        
         Args:
             query: The user's query
             json_schema: Optional JSON schema for structured responses
             tools: Optional list of functions the agent can call
-            model_name: Optional model override (uses default if not provided)
+            model_name: Optional model override (forced to gpt-5-nano)
         """
+        # Force model to gpt-5-nano only
+        model = "gpt-5-nano"
+        
+        # If tools are provided, we need to use chat/completions API
+        if tools:
+            return self._invoke_with_completions_api(query, json_schema, tools, model)
+        
+        # For simple queries without tools, use the newer Responses API
+        return self._invoke_with_responses_api(query, json_schema, model)
+
+    def _invoke_with_responses_api(
+        self,
+        query: str,
+        json_schema: t.Optional[dict | t.Any] = None,
+        model: str = "gpt-5-nano",
+    ) -> dict:
+        """Handle queries using the newer Responses API."""
+        url = f"{self.base_url}/responses"
+        
+        # Build payload for Responses API
+        payload = {
+            "model": model,
+            "input": query,
+            "max_output_tokens": 4000,  # Responses API uses max_output_tokens
+            "temperature": 1,
+        }
+        
+        # Add JSON schema if provided (Responses API format)
+        schema = self._extract_json_schema(json_schema)
+        if schema:
+            if self._supports_structured_outputs(model):
+                # Use Responses API's structured format
+                payload["text"] = {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "structured_response",
+                        "schema": schema
+                    }
+                }
+            else:
+                # Fallback for unsupported models - add instruction to the input
+                payload["input"] = f"{query}\n\nPlease respond with valid JSON that follows this schema: {json.dumps(schema)}"
+                payload["text"] = {"format": {"type": "json_object"}}
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(url, json=payload, headers=headers, timeout=300)
+        
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            # Handle token parameter errors with fallback
+            try:
+                error_data = response.json()
+                error_msg = error_data.get('error', {}).get('message', str(e))
+                
+                if 'max_output_tokens' in error_msg.lower() and 'not supported' in error_msg.lower():
+                    print(f"Responses API Error with max_output_tokens: {error_msg}")
+                    print("Retrying with max_tokens for older model compatibility...")
+                    
+                    if 'max_output_tokens' in payload:
+                        payload['max_tokens'] = payload.pop('max_output_tokens')
+                        response = requests.post(url, json=payload, headers=headers, timeout=300)
+                        response.raise_for_status()
+                else:
+                    print(f"Responses API Error: {error_msg}")
+                    raise
+            except json.JSONDecodeError:
+                print(f"HTTP Error: {e}")
+                print(f"Response status: {response.status_code}")
+                print(f"Response text: {response.text}")
+                raise
+        
+        data = response.json()
+        
+        # Handle the Responses API response format
+        assistant_response = ""
+        
+        # The Responses API returns a response object with 'output' array
+        if isinstance(data, dict) and 'output' in data and isinstance(data['output'], list):
+            # Look for the assistant message in the output array
+            for output_item in data['output']:
+                if output_item.get('role') == 'assistant' and 'content' in output_item:
+                    content_list = output_item['content']
+                    for content_item in content_list:
+                        if content_item.get('type') == 'output_text' and 'text' in content_item:
+                            assistant_response = content_item['text']
+                            break
+                    if assistant_response:
+                        break
+        
+        if not assistant_response:
+            # Fallback: try to find text anywhere in the response
+            assistant_response = f"Could not parse response format: {str(data)[:200]}..."
+        
+        # Store query and response in conversation history
+        self.query = query
+        self.conversation_history.append({"role": "user", "content": query})
+        self.conversation_history.append({"role": "assistant", "content": assistant_response})
+        
+        # Build agent context (no tool results for responses API)
+        self._build_agent_context(assistant_response, {})
+        
+        return {
+            "text": assistant_response,
+            "raw": data,
+            "conversation_history": self.get_conversation_history(),
+            "tool_calls": [],
+            "tool_results": {}
+        }
+
+    def _invoke_with_completions_api(
+        self,
+        query: str,
+        json_schema: t.Optional[dict | t.Any] = None,
+        tools: t.Optional[t.Iterable[t.Callable]] = None,
+        model: str = "gpt-5-nano",
+    ) -> dict:
+        """Handle queries with tools using the traditional chat/completions API."""
         url = f"{self.base_url}/chat/completions"
-        payload = self._build_chat_payload(query, json_schema, tools, model_name, stream=False)
+        payload = self._build_chat_payload(query, json_schema, tools, model)
         self.query = query
         
         headers = {
@@ -759,7 +886,7 @@ class OpenAIClient:
             model_name: Optional model override (uses default if not provided)
         """
         url = f"{self.base_url}/responses"
-        model = model_name or self.default_model
+        model = "gpt-5-nano"
         
         # Build payload for Responses API
         payload = {
@@ -867,14 +994,20 @@ class OpenAIClient:
     ) -> t.Iterator[str]:
         """Send a query to OpenAI and return a streaming response.
         
+        Note: Responses API doesn't support streaming, so this method uses 
+        chat/completions with gpt-5-nano model only.
+        
         Args:
             query: The user's query
             json_schema: Optional JSON schema for structured responses
             tools: Optional list of functions the agent can call
-            model_name: Optional model override (uses default if not provided)
+            model_name: Optional model override (forced to gpt-5-nano)
         """
+        # Force model to gpt-5-nano only
+        model = "gpt-5-nano"
+        
         url = f"{self.base_url}/chat/completions"
-        payload = self._build_chat_payload(query, json_schema, tools, model_name, stream=True)
+        payload = self._build_chat_payload(query, json_schema, tools, model, stream=True)
         self.query = query
         
         headers = {
