@@ -3,6 +3,7 @@
 Exact implementation example matching the requested structure.
 """
 
+import os
 from openrouter_client import Client
 
 def tavily_search(query: str) -> str:
@@ -16,7 +17,7 @@ task = "You are a helpful search agent that can find information on the web"
 model2 = "openai/gpt-oss-120b:free"
 
 # Step 2: Create the agent exactly as specified
-re_phrase_agent = Client(role=task, model_name=model2, agent_name="SearchAgent", api_key="demo_key")
+re_phrase_agent = Client(role=task, model_name=model2, agent_name="SearchAgent", api_key=os.getenv('OPENROUTER_API_KEY', 'demo-key-set-environment-variable'))
 
 # Step 3: Use invoke with tools exactly as specified (structure demo - no actual API call)
 print("About to call:")
@@ -40,11 +41,11 @@ print("4. Tool calling functionality enabled")
 
 # Another agent with different role
 coding_task = "You are an expert Python developer"
-coding_agent = Client(role=coding_task, model_name=model2, agent_name="CodingAgent", api_key="demo_key")
+coding_agent = Client(role=coding_task, model_name=model2, agent_name="CodingAgent", api_key=os.getenv('OPENROUTER_API_KEY', 'demo-key-set-environment-variable'))
 
 # Research agent
 research_task = "You are a thorough research specialist"
-research_agent = Client(role=research_task, model_name=model2, agent_name="ResearchAgent", api_key="demo_key")
+research_agent = Client(role=research_task, model_name=model2, agent_name="ResearchAgent", api_key=os.getenv('OPENROUTER_API_KEY', 'demo-key-set-environment-variable'))
 
 print("\n✅ Multiple agents created using the same pattern")
 print(f"- SearchAgent: {re_phrase_agent.agent_name}")

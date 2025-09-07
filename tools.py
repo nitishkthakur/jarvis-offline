@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 import requests
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from security_utils import secure_print, validate_env_vars, SecretsDetector
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -216,48 +217,47 @@ def quick_search(query: str, num_results: int = 3) -> str:
 
 def test_tavily_search():
     """Test function for the Tavily search tool."""
-    print("🔍 Testing Tavily Search Tool")
-    print("=" * 50)
+    secure_print("🔍 Testing Tavily Search Tool")
+    secure_print("=" * 50)
     
-    # Check if API key is available
-    api_key = os.getenv('TAVILY_API_KEY')
-    if not api_key or api_key == 'your_tavily_api_key_here':
-        print("❌ TAVILY_API_KEY not properly configured!")
-        print("\nTo set up the API key:")
-        print("1. Copy .env.template to .env:")
-        print("   cp .env.template .env")
-        print("2. Edit .env file and replace 'your_tavily_api_key_here' with your actual API key")
-        print("3. Get your API key from: https://tavily.com/")
-        print("\nAlternatively, set the environment variable directly:")
-        print("export TAVILY_API_KEY='your_actual_api_key'")
+    # Validate environment variables
+    validation_results = validate_env_vars(['TAVILY_API_KEY'], warn_only=True)
+    
+    if not validation_results.get('TAVILY_API_KEY', False):
+        secure_print("❌ TAVILY_API_KEY not properly configured!")
+        secure_print("\nTo set up the API key:")
+        secure_print("1. Copy .env.template to .env:")
+        secure_print("   cp .env.template .env")
+        secure_print("2. Edit .env file and replace 'your_tavily_api_key_here' with your actual API key")
+        secure_print("3. Get your API key from: https://tavily.com/")
+        secure_print("\nAlternatively, set the environment variable directly:")
+        secure_print("export TAVILY_API_KEY='your_actual_api_key'")
         return
     
-    print(f"✅ API key found!")
-    
     # Test: Three query parameters
-    print("\n📝 Test: Three Query Parameters")
-    print("-" * 30)
+    secure_print("\n📝 Test: Three Query Parameters")
+    secure_print("-" * 30)
     query1 = "Python async programming"
     query2 = "ThreadPoolExecutor tutorial"
     query3 = "Tavily API documentation"
     max_results = 2
     
-    print(f"Query 1: {query1}")
-    print(f"Query 2: {query2}")
-    print(f"Query 3: {query3}")
-    print(f"Max Results per query: {max_results}")
-    print("\nSearch Results:")
-    print("-" * 20)
+    secure_print(f"Query 1: {query1}")
+    secure_print(f"Query 2: {query2}")
+    secure_print(f"Query 3: {query3}")
+    secure_print(f"Max Results per query: {max_results}")
+    secure_print("\nSearch Results:")
+    secure_print("-" * 20)
     
     results = tavily_search(query1, query2, query3, max_results)
-    print(f"Result length: {len(results)} characters")
-    print("First 800 characters:")
-    print(results[:800] + "..." if len(results) > 800 else results)
+    secure_print(f"Result length: {len(results)} characters")
+    secure_print("First 800 characters:")
+    secure_print(results[:800] + "..." if len(results) > 800 else results)
 
-    print("\n" + "=" * 50)
-    print("✅ Tests completed!")
-    print(f"Result length: {len(results)} characters")
-    print("✅ Three-parameter query functionality working!")
+    secure_print("\n" + "=" * 50)
+    secure_print("✅ Tests completed!")
+    secure_print(f"Result length: {len(results)} characters")
+    secure_print("✅ Three-parameter query functionality working!")
 
 
 if __name__ == "__main__":
