@@ -5,6 +5,7 @@ import requests
 import os
 import datetime
 from dotenv import load_dotenv
+from security_utils import secure_print, validate_env_vars, mask_secrets
 
 # Load environment variables
 load_dotenv()
@@ -66,7 +67,7 @@ class OpenAIClient:
     # Create client
     client = OpenAIClient(
         role="information_extractor",
-        api_key="your-openai-api-key",
+        api_key=os.getenv('OPENAI_API_KEY', 'placeholder-key-set-environment-variable'),
         model_name="gpt-5-nano"  # Supports structured outputs
     )
     
@@ -1160,14 +1161,14 @@ if __name__ == "__main__":
     """Example usage demonstrating conversation history and agent context features."""
     
     # Check if API key is available
-    import os
-    api_key = os.getenv('OPENAI_API_KEY')
-    if not api_key:
-        print("=== OpenAI Client Structured Output Examples ===")
-        print("Note: No OPENAI_API_KEY found in environment variables.")
-        print("Set your API key to run live examples:")
-        print("export OPENAI_API_KEY='your-api-key-here'")
-        print("\n=== Example Code for Structured Outputs ===")
+    validation_results = validate_env_vars(['OPENAI_API_KEY'], warn_only=True)
+    
+    if not validation_results.get('OPENAI_API_KEY', False):
+        secure_print("=== OpenAI Client Structured Output Examples ===")
+        secure_print("Note: No OPENAI_API_KEY found in environment variables.")
+        secure_print("Set your API key to run live examples:")
+        secure_print("export OPENAI_API_KEY='your-api-key-here'")
+        secure_print("\n=== Example Code for Structured Outputs ===")
         
         # Show example code instead of running it
         example_code = '''
